@@ -1,0 +1,139 @@
+.lcc-file-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lcc-col-name {
+  width: 100%;
+}
+
+.lcc-col-link {
+  width: 100%;
+  min-width: 0;
+}
+
+.lcc-col-actions {
+  width: 100%;
+}
+
+.lcc-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.lcc-link {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 992px) {
+  .lcc-file-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .lcc-col-name {
+    flex: 0 0 280px;
+  }
+
+  .lcc-col-link {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .lcc-col-actions {
+    flex: 0 0 170px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .lcc-actions {
+    justify-content: flex-end;
+  }
+}
+
+.lcc-home {
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.lcc-home__body {
+  padding: 32px;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lcc-home__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lcc-home__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.1);
+}
+
+.lcc-home__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lcc-home__stat {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lcc-home__stat-label {
+  font-size: 13px;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.lcc-home__stat-value {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.lcc-home__stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 18px;
+}
+
+@media (max-width: 991px) {
+  .lcc-home__stats {
+    grid-template-columns: 1fr;
+  }
+}
