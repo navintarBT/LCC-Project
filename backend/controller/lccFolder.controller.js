@@ -8,14 +8,31 @@ const {
   formatFile,
   deleteFolderCascade,
 } = require('./lcc.utils')
+const { clippingParents } = require('@popperjs/core')
+const { data } = require('jquery')
+
+const crypto = require('crypto')
+
+// Simple secret storage (in production this should be in env)
+const SECRET_KEY = process.env.LCC_SECRET_KEY || 'dev_secret_key_change_in_prod'
+
+const generateToken = (fileId) => {
+  const timestamp = Date.now().toString()
+  const data = `${fileId}:${timestamp}`
+  const hmac = crypto.createHmac('sha256', SECRET_KEY)
+  hmac.update(data)
+  const hash = hmac.digest('hex')
+  return `${timestamp}:${hash}`
+}
 
 const checkPassword = async (req, res) => {
   try {
-    const fileId = ensureString(req.body?.fileId || '')
+    // Route: localhost:9000/lccData/checkPassword/:id
+    const fileId = ensureString(req.params?.id || '')
     const passwordInput = ensureString(req.body?.password || '')
 
-    if (!isValidId(fileId)) {
-      return res.status(400).json({success: false, message: 'Invalid file id'})
+    if (!fileId) {
+      return res.status(400).json({success: false, message: 'Invalid file id', data: req})
     }
 
     const file = await LccFile.findById(fileId).select('+password')
@@ -36,10 +53,49 @@ const checkPassword = async (req, res) => {
       return res.status(401).json({success: false, message: 'Invalid password'})
     }
 
-    return res.json({success: true, message: 'Password valid'})
+    const token = generateToken(fileId)
+    return res.json({success: true, message: 'Password valid', token})
   } catch (error) {
     console.error('Failed to check password', error)
     res.status(500).json({success: false, message: 'Unable to check password'})
+  }
+}
+
+const verifyViewToken = async (req, res) => {
+  try {
+    const fileId = ensureString(req.body?.fileId || '')
+    const token = ensureString(req.body?.token || '')
+
+    if (!fileId || !token) {
+      return res.status(400).json({success: false, message: 'Missing parameters'})
+    }
+
+    const [timestamp, hash] = token.split(':')
+    if (!timestamp || !hash) {
+      return res.status(401).json({success: false, message: 'Invalid token format'})
+    }
+
+    // Verify timestamp (e.g., 5 minute expiry)
+    const now = Date.now()
+    const tokenTime = parseInt(timestamp, 10)
+    if (isNaN(tokenTime) || now - tokenTime > 5 * 60 * 1000) {
+      return res.status(401).json({success: false, message: 'Token expired'})
+    }
+
+    // Verify hash
+    const data = `${fileId}:${timestamp}`
+    const hmac = crypto.createHmac('sha256', SECRET_KEY)
+    hmac.update(data)
+    const expectedHash = hmac.digest('hex')
+
+    if (hash !== expectedHash) {
+      return res.status(401).json({success: false, message: 'Invalid token signature'})
+    }
+
+    return res.json({success: true})
+  } catch (error) {
+    console.error('Failed to verify token', error)
+    res.status(500).json({success: false, message: 'Unable to verify token'})
   }
 }
 
@@ -349,4 +405,5 @@ module.exports = {
   deleteFile,
   getFileById,
   checkPassword,
+  verifyViewToken,
 }

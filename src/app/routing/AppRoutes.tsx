@@ -9,6 +9,7 @@ import {FC} from 'react'
 import {Routes, Route, BrowserRouter, Navigate} from 'react-router-dom'
 import {PrivateRoutes} from './PrivateRoutes'
 import {ErrorsPage} from '../modules/errors/ErrorsPage'
+import {LccPasswordGate} from '../modules/kumonos/components/lcc/LccPasswordGate'
 import {Logout, AuthPage, useAuth} from '../modules/auth'
 import {App} from '../App'
 
@@ -47,6 +48,7 @@ const AppRoutes: FC = () => {
               <Route path='*' element={<Navigate to='/auth' />} />
             </>
           )}
+          <Route path='enterPassword/:id' element={<LccPasswordGate />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -5,7 +5,7 @@ import {checkLccPassword, fetchLccFile, LccFile} from './api'
 import './lcc-details.css'
 
 const LccPasswordGate: React.FC = () => {
-  const {fileId} = useParams<{fileId?: string}>()
+  const {id} = useParams<{id?: string}>()
   const navigate = useNavigate()
   const [file, setFile] = useState<LccFile | null>(null)
   const [loading, setLoading] = useState(false)
@@ -14,13 +14,13 @@ const LccPasswordGate: React.FC = () => {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!fileId) return
+    if (!id) return
     let ignore = false
     const loadFile = async () => {
       setLoading(true)
       setError('')
       try {
-        const payload = await fetchLccFile(fileId)
+        const payload = await fetchLccFile(id)
         if (ignore) return
         setFile(payload)
       } catch (err) {
@@ -38,7 +38,7 @@ const LccPasswordGate: React.FC = () => {
     return () => {
       ignore = true
     }
-  }, [fileId])
+  }, [id])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -59,8 +59,9 @@ const LccPasswordGate: React.FC = () => {
   }
 
   const handleSubmit = async () => {
-    if (!fileId) return
+    if (!id) return
     const trimmed = password.trim()
+    const key = `lcc_unlock_${id}`;
     if (!trimmed) {
       setError('Password is required.')
       return
@@ -68,13 +69,22 @@ const LccPasswordGate: React.FC = () => {
     setSubmitting(true)
     setError('')
     try {
-      const result = await checkLccPassword(fileId, trimmed)
+      const result = await checkLccPassword(id, trimmed)
       if (!result?.success) {
         setError(result?.message || 'Invalid password.')
         setSubmitting(false)
         return
       }
-      handleOpen()
+      
+      const token = result.token
+      if (token) {
+        window.location.replace(`http://127.0.0.1:5501/examples/three.html?id=${id}&token=${token}`)
+        // Clean up session usage if we rely purely on token verification now, 
+        // or keep logic if needed by other parts, but token flow is primary.
+        sessionStorage.setItem(`lcc_unlock_${id}`, '1') 
+      } else {
+        setError('Server did not provide verification token.')
+      }
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Invalid password.'
       setError(message)
@@ -83,7 +93,7 @@ const LccPasswordGate: React.FC = () => {
     }
   }
 
-  if (!fileId) {
+  if (!id) {
     return (
       <div className='lcc-password-page'>
         <div className='lcc-password-page__content'>

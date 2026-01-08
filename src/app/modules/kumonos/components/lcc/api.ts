@@ -127,10 +127,10 @@ export const fetchLccFile = async (fileId: string): Promise<LccFile> => {
 export const checkLccPassword = async (
   fileId: string,
   password: string
-): Promise<{success: boolean; message: string}> => {
-  const response = await axios.post<{success: boolean; message: string}>(
-    `${LCC_API_URL}/lccData/checkPassword`,
-    {fileId, password}
+): Promise<{success: boolean; message: string; token?: string}> => {
+  const response = await axios.post<{success: boolean; message: string; token?: string}>(
+    `${LCC_API_URL}/lccData/checkPassword/${fileId}`,
+    {password}
   )
   return response.data
 }

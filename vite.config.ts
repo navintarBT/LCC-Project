@@ -12,7 +12,7 @@ export default defineConfig({
   },
   define: {
     'process.env': {
-      VITE_SERVER_URL: 'https://3dr4vhc7-9000.asse.devtunnels.ms',
+      VITE_SERVER_URL: 'http://localhost:9000',
     }
   }
 })
