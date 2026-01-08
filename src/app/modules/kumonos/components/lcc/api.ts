@@ -119,6 +119,22 @@ export const deleteLccFile = async (fileId: string): Promise<void> => {
   await axios.delete(`${LCC_API_URL}/files/${fileId}`)
 }
 
+export const fetchLccFile = async (fileId: string): Promise<LccFile> => {
+  const response = await axios.get<LccFile>(`${LCC_API_URL}/lccData/${fileId}`)
+  return response.data
+}
+
+export const checkLccPassword = async (
+  fileId: string,
+  password: string
+): Promise<{success: boolean; message: string}> => {
+  const response = await axios.post<{success: boolean; message: string}>(
+    `${LCC_API_URL}/lccData/checkPassword`,
+    {fileId, password}
+  )
+  return response.data
+}
+
 export const deleteCompany = async (companyId: string): Promise<void> => {
   await axios.delete(`${LCC_API_URL}/companies/${companyId}`)
 }

@@ -1,29 +1,45 @@
 const path = require('path');
-const multer = require('multer');
+const config = require('../config/config');
 
-var storage = multer.diskStorage({
-    destination: function(req, file, cb) {
-        cb(null, 'uploads/')
-    },
-    filename: function(req, file, cb) {
-        let ext = path.extname(file.originalname)
-        cb(null, Date.now() + ext) 
-    }
-});
+/**
+ * Validate upload request
+ */
+function validateUpload(req, res, next) {
+  // Check content type
+  const contentType = req.headers['content-type'] || '';
+  
+  if (!contentType.includes('multipart/form-data')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Content-Type must be multipart/form-data'
+    });
+  }
+  
+  // Check content length if provided
+  const contentLength = parseInt(req.headers['content-length'], 10);
+  
+  if (contentLength && contentLength > config.MAX_FILE_SIZE) {
+    return res.status(413).json({
+      success: false,
+      error: `File too large. Maximum size is ${config.MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB`
+    });
+  }
+  
+  next();
+}
 
-let upload = multer ({
-    storage: storage,
-    fileFilter: function(req, file, callback) {
-        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
-            callback(null, true);
-        } else {
-            console.log('only jpg & png file are supported!')
-            callback(null, false);
-        }
-    },
-    limits: {
-        fileSize: 1024 * 1024 * 2
-    }
-})
+/**
+ * Validate file extension
+ * @param {string} filename - The filename to validate
+ * @returns {boolean} True if valid
+ */
+function isValidFileExtension(filename) {
+  if (!filename) return false;
+  const ext = path.extname(filename).toLowerCase();
+  return config.ALLOWED_EXTENSIONS.includes(ext);
+}
 
-module.exports = upload
+module.exports = {
+  validateUpload,
+  isValidFileExtension
+};

@@ -219,8 +219,13 @@ const LccDetails: React.FC = () => {
     }
   }, [])
 
+  const getAccessLink = (fileId: string) => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/kumonos/lcc-access/${fileId}`
+  }
+
   const handleCopyLink = async (file: LccFile) => {
-    const shareLink = `http://locolhost:5174?id=${file.id}`
+    const shareLink = file.enablePassword ? getAccessLink(file.id) : `http://localhost:5174?id=${file.id}`
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareLink)
@@ -245,6 +250,10 @@ const LccDetails: React.FC = () => {
   }
 
   const handleView = (file: LccFile) => {
+    if (file.enablePassword) {
+      navigate(`/kumonos/lcc-access/${file.id}`)
+      return
+    }
     if (file.link) {
       const encodedLink = encodeURI(file.link)
       window.open(encodedLink, '_blank', 'noopener')
@@ -403,12 +412,7 @@ const LccDetails: React.FC = () => {
     if (editModal.mode === 'upload') {
       if (!details?.folder?.id) return
       if (editModal.uploadFiles.length === 0) {
-        setEditModal((prev) => ({...prev, uploadStatus: 'Please choose a folder to upload'}))
-        return
-      }
-      const lccFiles = editModal.uploadFiles.filter((file) => file.name.toLowerCase().endsWith('.lcc'))
-      if (lccFiles.length === 0) {
-        setEditModal((prev) => ({...prev, uploadStatus: 'error: Folder does not contain any .lcc files'}))
+        setEditModal((prev) => ({...prev, uploadStatus: 'Please choose a zip file to upload'}))
         return
       }
       if (editModal.enablePassword) {
@@ -431,7 +435,8 @@ const LccDetails: React.FC = () => {
       formData.append('companyName', details.company?.name ?? 'company_default')
       formData.append('projectName', details.folder.name ?? 'project_default')
       formData.append('titleName', editModal.values.name.trim() || details.folder.name || 'title_default')
-      editModal.uploadFiles.forEach((file) => formData.append('files', file))
+      formData.append('folderId', details.folder.id)
+      formData.append('file', editModal.uploadFiles[0])
 
       setEditModal((prev) => ({...prev, saving: true, uploadStatus: 'Uploading...', uploadProgress: 0}))
       try {
@@ -444,29 +449,56 @@ const LccDetails: React.FC = () => {
           },
         })
 
-        const uploadedFiles: Array<{originalName: string; savedAs: string}> = response.data?.files || []
-        const folderUrl: string | undefined = response.data?.folderUrl
-
-        // only create a single LCC file entry pointing to meta.lcc
-        if (folderUrl) {
-          const entryFile = lccFiles[0]
-          const friendlyName =
-            editModal.values.name.trim() ||
-            entryFile?.name ||
-            uploadedFiles[0]?.originalName ||
-            'file.lcc'
-          await createLccFile(details.folder.id, {
-            name: friendlyName,
-            link: `${UPLOAD_API_BASE}${folderUrl}/${entryFile?.name || 'file.lcc'}`,
-            enablePassword: editModal.enablePassword,
-            password: editModal.enablePassword ? editModal.password.trim() : undefined,
-            ...(userId ? {createdBy: userId, updatedBy: userId} : {}),
-          })
+        if (!response) {
+          setEditModal((prev) => ({
+            ...prev,
+            saving: false,
+            uploadStatus: 'error: Upload failed',
+            uploadProgress: 0,
+          }))
+          return
         }
+
+        if (response.status >= 400) {
+          const message = (response as any)?.data?.message || 'Upload failed'
+          setEditModal((prev) => ({
+            ...prev,
+            saving: false,
+            uploadStatus: `error: ${message}`,
+            uploadProgress: 0,
+          }))
+          return
+        }
+
+        const folderUrl: string | undefined = response.data?.folderUrl
+        const entryFile: string | undefined = response.data?.entryFile
+        setEditModal((prev) => ({...prev, uploadStatus: 'Upload complete.', uploadProgress: 100}))
+
+        if (!folderUrl || !entryFile) {
+          setEditModal((prev) => ({
+            ...prev,
+            saving: false,
+            uploadStatus: 'error: Zip does not contain any .lcc files',
+          }))
+          return
+        }
+
+        const friendlyName =
+          editModal.values.name.trim() ||
+          entryFile.split('/').pop() ||
+          'file.lcc'
+
+        await createLccFile(details.folder.id, {
+          name: friendlyName,
+          link: `${UPLOAD_API_BASE}${folderUrl}/${entryFile}`,
+          enablePassword: editModal.enablePassword,
+          password: editModal.enablePassword ? editModal.password.trim() : undefined,
+          ...(userId ? {createdBy: userId, updatedBy: userId} : {}),
+        })
 
         setEditModal((prev) => ({
           ...prev,
-          uploadStatus: `Uploaded ${response.data?.count ?? 0} file(s)`,
+          uploadStatus: 'Uploaded & extracted successfully',
           uploadProgress: 100,
         }))
 
@@ -486,6 +518,7 @@ const LccDetails: React.FC = () => {
         if (message && duplicateMessages.has(message)) {
           Swal.fire({icon: 'error', title: 'Duplicate name', text: message})
           closeEditModal()
+          return
         }
         console.error('Unable to upload LCC Data', err)
         setEditModal((prev) => ({
@@ -727,7 +760,7 @@ const LccDetails: React.FC = () => {
                 }}
               >
                 <i className='bi bi-upload'></i>
-                <span>Upload folder</span>
+                <span>Upload</span>
               </button>
             </div>
 
@@ -754,13 +787,13 @@ const LccDetails: React.FC = () => {
                             <i className='bi bi-unlock text-muted' title='Password disabled'></i>
                           )}
                           <a
-                            href={`http://locolhost:5174?id=${file.id}`}
+                            href={file.enablePassword ? getAccessLink(file.id) : `http://localhost:5174?id=${file.id}`}
                             target='_blank'
                             rel='noreferrer'
                             className='text-primary small lcc-link'
-                            title={`http://locolhost:5174?id=${file.id}`}
+                            title={file.enablePassword ? getAccessLink(file.id) : `http://localhost:5174?id=${file.id}`}
                           >
-                            {`http://locolhost:5174?id=${file.id}`}
+                            {file.enablePassword ? getAccessLink(file.id) : `http://localhost:5174?id=${file.id}`}
                           </a>
                         </div>
                       ) : (
@@ -914,45 +947,37 @@ const LccDetails: React.FC = () => {
             </div>
           )}
           <div className='mb-3'>
-            <label className='form-label'>Upload folder</label>
+            <label className='form-label'>Upload zip</label>
             <div className='d-flex align-items-center gap-3'>
               <Button
                 variant='primary'
                 size='sm'
                 onClick={() => document.getElementById('lcc-folder-picker')?.click()}
               >
-                Upload folder
+                Upload zip
               </Button>
               <span className='text-muted small'>
-                {editModal.selectedFolder ? editModal.selectedFolder : 'No folder selected'}
+                {editModal.selectedFolder ? editModal.selectedFolder : 'No zip selected'}
               </span>
             </div>
             <input
               id='lcc-folder-picker'
               type='file'
               style={{display: 'none'}}
-              //@ts-ignore webkitdirectory is non-standard but widely supported
-              webkitdirectory='true'
-              //@ts-ignore
-              directory='true'
+              accept='.zip'
               onChange={(e) => {
                 const fileList = e.target.files ? Array.from(e.target.files) : []
-                const folderName =
-                  fileList && fileList.length
-                    ? // @ts-ignore webkitRelativePath exists on File
-                      (fileList[0].webkitRelativePath || '').split('/')[0] || fileList[0].name
-                    : null
-                const firstFileName = fileList[0]?.name || ''
+                const zipName = fileList[0]?.name || ''
                 setEditModal((prev) => ({
                   ...prev,
-                  selectedFolder: folderName || null,
-                  uploadFiles: fileList,
-                  uploadStatus: fileList.length ? `${fileList.length} file(s) selected` : 'No files selected',
+                  selectedFolder: zipName || null,
+                  uploadFiles: fileList.length ? [fileList[0]] : [],
+                  uploadStatus: fileList.length ? `${fileList[0].name} selected` : 'No files selected',
                   uploadProgress: 0,
                   values: {
                     ...prev.values,
                     // prefill only if empty; keep user-typed name
-                    name: prev.values.name || firstFileName,
+                    name: prev.values.name || zipName,
                   },
                 }))
               }}
@@ -969,7 +994,7 @@ const LccDetails: React.FC = () => {
               >
                 {editModal.uploadStatus
                   ? editModal.uploadStatus.replace(/^error:\s*/i, '')
-                  : 'Pick a folder to upload all files to the server'}
+                  : 'Pick a zip to upload to the server'}
               </div>
               {editModal.uploadProgress > 0 && (
                 <div className='progress mt-2' style={{height: 6}}>

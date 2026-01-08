@@ -427,16 +427,7 @@ const DynamicCompanyMenu: FC = () => {
         const company = companies.find((c) => c.folders.some((f) => f.id === folderId))
         if (!company) throw new Error('Company not found for folder')
         if (creationModal.uploadFiles.length === 0) {
-          setCreationModal((prev) => ({...prev, saving: false, uploadStatus: 'Please choose a folder to upload'}))
-          return
-        }
-        const lccFiles = creationModal.uploadFiles.filter((file) => file.name.toLowerCase().endsWith('.lcc'))
-        if (lccFiles.length === 0) {
-          setCreationModal((prev) => ({
-            ...prev,
-            saving: false,
-            uploadStatus: 'error: Folder does not contain any .lcc files',
-          }))
+          setCreationModal((prev) => ({...prev, saving: false, uploadStatus: 'Please choose a zip file to upload'}))
           return
         }
         if (creationModal.enablePassword) {
@@ -471,7 +462,11 @@ const DynamicCompanyMenu: FC = () => {
         formData.append('companyName', company.name || 'company_default')
         formData.append('projectName', folderName || 'project_default')
         formData.append('titleName', trimmedName || folderName || 'title_default')
-        creationModal.uploadFiles.forEach((file) => formData.append('files', file))
+        // ✅ ใส่ folderId ก่อน
+        formData.append('folderId', folderId)
+
+        // ✅ แล้วค่อย file
+        formData.append('file', creationModal.uploadFiles[0])
 
         const uploadRes = await axios.post(`${UPLOAD_API_BASE}/upload`, formData, {
           headers: {'Content-Type': 'multipart/form-data'},
@@ -482,24 +477,29 @@ const DynamicCompanyMenu: FC = () => {
           },
         })
 
-        const uploadedFiles: Array<{originalName: string; savedAs: string}> = uploadRes.data?.files || []
         const folderUrl: string | undefined = uploadRes.data?.folderUrl
+        const entryFile: string | undefined = uploadRes.data?.entryFile
 
-        if (folderUrl) {
-          const entryFile = lccFiles[0]
-          const friendlyName =
-            creationModal.name.trim() ||
-            entryFile?.name ||
-            uploadedFiles[0]?.originalName ||
-            'file.lcc'
-          await createLccFile(folderId, {
-            name: friendlyName,
-            link: `${UPLOAD_API_BASE}${folderUrl}/${entryFile?.name || 'file.lcc'}`,
-            enablePassword: creationModal.enablePassword,
-            password: creationModal.enablePassword ? creationModal.password.trim() : undefined,
-            ...(userId ? {createdBy: userId, updatedBy: userId} : {}),
-          })
+        if (!folderUrl || !entryFile) {
+          setCreationModal((prev) => ({
+            ...prev,
+            saving: false,
+            uploadStatus: 'error: Zip does not contain any .lcc files',
+          }))
+          return
         }
+
+        const friendlyName =
+          creationModal.name.trim() ||
+          entryFile.split('/').pop() ||
+          'file.lcc'
+        await createLccFile(folderId, {
+          name: friendlyName,
+          link: `${UPLOAD_API_BASE}${folderUrl}/${entryFile}`,
+          enablePassword: creationModal.enablePassword,
+          password: creationModal.enablePassword ? creationModal.password.trim() : undefined,
+          ...(userId ? {createdBy: userId, updatedBy: userId} : {}),
+        })
 
         setCreationModal((prev) => ({...prev, uploadStatus: 'Uploaded successfully', uploadProgress: 100}))
         if (typeof window !== 'undefined') {
@@ -872,39 +872,31 @@ const DynamicCompanyMenu: FC = () => {
                   />
                 </div>
               )}
-              <label className='form-label'>Upload folder</label>
+              <label className='form-label'>Upload zip</label>
               <div className='d-flex align-items-center gap-3 mb-2'>
                 <Button variant='primary' size='sm' onClick={() => document.getElementById('lcc-create-folder-picker')?.click()}>
-                  Upload folder
+                  Upload zip
                 </Button>
                 <span className='text-muted small'>
-                  {creationModal.selectedFolder ? creationModal.selectedFolder : 'No folder selected'}
+                  {creationModal.selectedFolder ? creationModal.selectedFolder : 'No zip selected'}
                 </span>
               </div>
               <input
                 id='lcc-create-folder-picker'
                 type='file'
                 style={{display: 'none'}}
-                //@ts-ignore webkitdirectory is non-standard but widely supported
-                webkitdirectory='true'
-                //@ts-ignore
-                directory='true'
+                accept='.zip'
                 onChange={(event) => {
                   const fileList = event.target.files ? Array.from(event.target.files) : []
-                  const folderName =
-                    fileList && fileList.length
-                      ? // @ts-ignore webkitRelativePath exists on File
-                        (fileList[0].webkitRelativePath || '').split('/')[0] || fileList[0].name
-                      : null
-                  const firstFileName = fileList[0]?.name || ''
+                  const zipName = fileList[0]?.name || ''
                   setCreationModal((prev) => ({
                     ...prev,
-                    selectedFolder: folderName || null,
-                    uploadFiles: fileList,
-                    uploadStatus: fileList.length ? `${fileList.length} file(s) selected` : 'No files selected',
+                    selectedFolder: zipName || null,
+                    uploadFiles: fileList.length ? [fileList[0]] : [],
+                    uploadStatus: fileList.length ? `${fileList[0].name} selected` : 'No files selected',
                     uploadProgress: 0,
                     // prefill only if empty; keep user-typed name
-                    name: prev.name || firstFileName,
+                    name: prev.name || zipName,
                   }))
                 }}
               />

@@ -4,6 +4,7 @@ import {PageLink, PageTitle} from '../../../_metronic/layout/core'
 import {UserManagement} from './components/usermanagement/UserManagement'
 import {LccDashboard} from './components/lcc/LccDashboard'
 import {LccDetails} from './components/lcc/LccDetails'
+import {LccPasswordGate} from './components/lcc/LccPasswordGate'
 import {fetchFolderDetails} from './components/lcc/api'
 
 const KumonosBreadCrumbs: Array<PageLink> = [
@@ -64,6 +65,15 @@ const KumonosPage: React.FC = () => {
             </>
           }
         />    
+        <Route
+          path='lcc-access/:fileId'
+          element={
+            <>
+              <PageTitle breadcrumbs={KumonosBreadCrumbs}>LCC Access</PageTitle>
+              <LccPasswordGate />
+            </>
+          }
+        />
         <Route
           path=':companyId/:folderId'
           element={

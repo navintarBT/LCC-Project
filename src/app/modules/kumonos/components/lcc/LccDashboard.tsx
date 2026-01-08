@@ -81,7 +81,7 @@ const LccDashboard: React.FC = () => {
                   <i className='bi bi-diagram-3-fill'></i>
                 </div>
                 <div>
-                  <div className='fs-2 fw-bold'>LCC Home</div>
+                  <div className='fs-2 fw-bold'>Dashboard</div>
                   <div className='text-muted small'>Overview of companies, projects, and files.</div>
                 </div>
               </div>
@@ -91,7 +91,7 @@ const LccDashboard: React.FC = () => {
               <div className='lcc-home__stat'>
                 <div className='lcc-home__stat-icon'>
                   <i className='bi bi-buildings'></i>
-                </div>
+                </div> 
                 <div>
                   <div className='lcc-home__stat-label'>Companies</div>
                   <div className='lcc-home__stat-value'>

@@ -1,132 +1,93 @@
-let express = require('express');
-let mongoose = require('mongoose');
-let cors = require('cors');
-let bodyParser = require('body-parser');
-const multer = require('multer');
-const createError = require('http-errors');
-const path = require('path');
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const bodyParser = require('body-parser');
 const fs = require('fs');
-const crypto = require('crypto');
-let dbConfig = require('./database/db');
-
+const config = require('./config/config');
+const uploadRoutes = require('./routes/uploadRoutes');
 const routes = require('./routes');
+const dbConfig = require('./database/db');
+
 mongoose.Promise = global.Promise;
 mongoose
-    .connect(dbConfig.db, { useNewUrlParser: true })
-    .then(() => console.log('Connection successful!'))
-    .catch((error) => console.error('Connection failed:', error));
+  .connect(dbConfig.db, {useNewUrlParser: true})
+  .then(() => console.log('Connection successful!'))
+  .catch((error) => console.error('Connection failed:', error));
 
 const app = express();
+
+// Security middleware
+app.use(helmet());
+
+// CORS configuration
+const corsOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5501',
+  'https://3dr4vhc7-9000.asse.devtunnels.ms',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Content-Length'],
+  })
+);
+
+// Parse JSON for non-upload routes
 app.use(bodyParser.json({limit: '2gb'}));
-app.use(bodyParser.urlencoded({
+app.use(
+  bodyParser.urlencoded({
     extended: true,
     limit: '2gb',
-}));
+  })
+);
 
-app.use(cors({origin: '*'}));
-app.options('*', cors({origin: '*'}));
+// Ensure upload directory exists
+fs.mkdirSync(config.UPLOAD_BASE_PATH, {recursive: true});
 
-const ROOT_UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(ROOT_UPLOAD_DIR)) {
-    fs.mkdirSync(ROOT_UPLOAD_DIR, {recursive: true});
-}
+// Expose uploads
+app.use('/uploads', express.static(config.UPLOAD_BASE_PATH));
 
-function sanitizeName(name, fallback) {
-    const raw = (name || '').toString().trim();
-    const used = raw || fallback;
-    const safe = used.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    return {raw: used, safe};
-}
-
-function makeFolderId(existing) {
-    const raw = (existing || '').toString().trim();
-    if (raw) {
-        const safe = raw.replace(/[^a-zA-Z0-9_\-]/g, '_');
-        return {raw, safe, mode: 'update'};
-    }
-    const generated = crypto.randomUUID();
-    return {raw: generated, safe: generated, mode: 'create'};
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        if (!req._uploadInfo) {
-            const company = sanitizeName(req.body.companyName, 'company_default');
-            const title = sanitizeName(req.body.titleName, 'title_default');
-            const folderId = makeFolderId(req.body.folderId);
-            const uploadPath = path.join(ROOT_UPLOAD_DIR, company.safe, folderId.safe);
-            req._uploadInfo = {company, title, folderId, uploadPath};
-        }
-
-        const {uploadPath} = req._uploadInfo;
-        fs.mkdir(uploadPath, {recursive: true}, (err) => {
-            cb(err, uploadPath);
-        });
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname);
-    },
-});
-
-const upload = multer({
-    storage,
-    limits: {
-        fileSize: 5 * 1024 * 1024 * 1024, // 5GB per file
-        fieldSize: 50 * 1024 * 1024, // 50MB for non-file fields
-    },
-});
-
-// expose uploaded files
-app.use('/uploads', express.static(ROOT_UPLOAD_DIR));
-
-// health check for upload service
-app.get('/health', (req, res) => {
-    res.json({status: 'ok'});
-});
-
-// Upload / Update endpoint
-app.post('/upload', upload.array('files', 200), (req, res) => {
-    if (!req.files || req.files.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'No files uploaded',
-        });
-    }
-
-    const info = req._uploadInfo;
-    const {company, title, folderId, uploadPath} = info;
-    const folderUrl = `/uploads/${company.safe}/${folderId.safe}`;
-
-    res.json({
-        success: true,
-        message: 'Files uploaded successfully',
-        mode: folderId.mode,
-        company: {raw: company.raw, safe: company.safe},
-        title: {raw: title.raw, safe: title.safe},
-        folderId: {raw: folderId.raw, safe: folderId.safe},
-        folderPath: uploadPath,
-        folderUrl,
-        count: req.files.length,
-        files: req.files.map((f) => ({
-            originalName: f.originalname,
-            savedAs: f.filename,
-            path: f.path,
-        })),
-    });
-});
-
+// API routes
+app.use('/api', uploadRoutes);
+app.use('/', uploadRoutes);
 app.use('/', routes);
 
-const port = process.env.PORT || 9000;
-app.listen(port, () => {
-    console.log('Connected to port: ' + port);
+// Health check
+app.get('/health', (_req, res) => {
+  res.json({status: 'ok', timestamp: new Date().toISOString()});
 });
 
-app.use((req, res, next) => {
-    next(createError(404));
+// Error handling middleware
+app.use((err, _req, res, _next) => {
+  console.error('Server error:', err);
+  res.status(500).json({
+    success: false,
+    error:
+      process.env.NODE_ENV === 'production'
+        ? 'Internal server error'
+        : err.message,
+  });
 });
 
-app.use(function(err, req, res, next) {
-    if (!err.statusCode) err.statusCode = 500;
-    res.status(err.statusCode).send(err.message);
-})
+// 404 handler
+app.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+  });
+});
+
+// Start server
+app.listen(config.PORT, () => {
+  console.log(`Server running on port ${config.PORT}`);
+  console.log(`Upload directory: ${config.UPLOAD_BASE_PATH}`);
+  console.log(
+    `Max file size: ${config.MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB`
+  );
+});
+
+module.exports = app;
